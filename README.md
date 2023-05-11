@@ -61,6 +61,12 @@ select count(*) from docs where full_text ilike '%famine%';
 -------
     69
 (1 row)
+
+select pg_size_pretty( pg_total_relation_size('docs') );
+ pg_size_pretty 
+----------------
+ 54 MB
+(1 row)
 ```
 
 ## Benchmark (first 1,000 activities, 2,447 documents)
