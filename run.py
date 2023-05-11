@@ -148,7 +148,7 @@ def fetch_documents(rows):
                     with olefile.OleFileIO(doc_content) as ole:
                         stream = ole.openstream('WordDocument')
                         text_content = stream.read().decode('utf-8', errors='ignore')
-                    cur.execute(write_sql, (content_type, '\n'.join(text_content).replace('\x00',''), id, ))
+                    cur.execute(write_sql, (content_type, text_content.replace('\x00',''), id, ))
                 except Exception as e:
                     content = str(e)
                     content_type = "doc/corrupt"
