@@ -6,10 +6,10 @@ A PDF scraper for project documents linked in IATI
 ```
 pip3 install virtualenv
 python3 -m virtualenv venv
-source venv/bin/activate
+venv\Scripts\activate
 pip3 install -r requirements.txt
 
-cp .env-example .env # Fill out variables
+copy .env-example .env # Fill out variables
 
 psql < setup.sql
 ```

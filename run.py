@@ -10,6 +10,7 @@ from PyPDF2 import PdfReader
 import olefile
 import docx
 import multiprocessing
+from bs4 import BeautifulSoup
 multiprocessing.set_start_method('spawn', True)
 
 load_dotenv()
@@ -38,33 +39,33 @@ def fetch_activity_documents():
         VALUES(%s, %s, %s);
     '''
     paginate = True
-    rows = 1000
+    rows = 100
     start = 0
-    while paginate:
-        url = (
-            'https://api.iatistandard.org/datastore/activity/select'
-            '?q=(recipient_country_code:SO OR transaction_recipient_country_code:SO)'
-            'AND (document_link_url: [* TO *])'
-            '&wt=json&fl=iati_identifier,document_link_url&rows={}&start={}'
-        ).format(rows, start)
-        api_json_str = requests.get(url, headers={'Ocp-Apim-Subscription-Key': API_KEY}).content
-        api_content = json.loads(api_json_str)
-        activities = api_content['response']['docs']
-        for activity in activities:
-            if type(activity['document_link_url']) is str:
+    # while paginate:
+    url = (
+        'https://api.iatistandard.org/datastore/activity/select'
+        '?q=(recipient_country_code:SO OR transaction_recipient_country_code:SO)'
+        'AND (document_link_url: [* TO *])'
+        '&wt=json&fl=iati_identifier,document_link_url&rows={}&start={}'
+    ).format(rows, start)
+    api_json_str = requests.get(url, headers={'Ocp-Apim-Subscription-Key': API_KEY}).content
+    api_content = json.loads(api_json_str)
+    activities = api_content['response']['docs']
+    for activity in activities:
+        if type(activity['document_link_url']) is str:
+            try:
+                cur.execute(sql, (activity['iati_identifier'], datetime.now(), activity['document_link_url'],))
+            except psycopg2.errors.UniqueViolation:
+                pass
+        else:
+            for document in activity['document_link_url']:
                 try:
-                    cur.execute(sql, (activity['iati_identifier'], datetime.now(), activity['document_link_url'],))
+                    cur.execute(sql, (activity['iati_identifier'], datetime.now(), document,))
                 except psycopg2.errors.UniqueViolation:
                     pass
-            else:
-                for document in activity['document_link_url']:
-                    try:
-                        cur.execute(sql, (activity['iati_identifier'], datetime.now(), document,))
-                    except psycopg2.errors.UniqueViolation:
-                        pass
-        start += rows
-        if len(activities) < rows:
-            paginate = False
+    start += rows
+    # if len(activities) < rows:
+    #     paginate = False
     cur.close()
     conn.close()
 
@@ -121,12 +122,15 @@ def fetch_documents(rows):
     '''
     cur = conn.cursor()
     for id, url in rows:
-        head = requests.head(url, allow_redirects=True)
+        head = requests.get(url, allow_redirects=True)
         if head.ok:
             content_type = head.headers['Content-Type']
             if content_type.startswith('text'):
-                content = requests.get(head.url).content
-                cur.execute(write_sql, (content_type, content, id, ))
+                soup = BeautifulSoup(head.content, features="html.parser")
+                for script in soup(["script", "style"]):
+                    script.extract()
+                text = soup.get_text()
+                cur.execute(write_sql, (content_type, text, id, ))
             elif content_type.startswith('application/pdf'):
                 try:
                     text_content = []
